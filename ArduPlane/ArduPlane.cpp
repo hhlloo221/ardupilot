@@ -70,6 +70,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
     SCHED_TASK(adjust_altitude_target, 10,    200,  48),
 #if ADVANCED_FAILSAFE == ENABLED
     SCHED_TASK(afs_fs_check,           10,    100,  51),
+    SCHED_TASK(uart_to_stm, 500, 100, 52),//toufang
 #endif
     SCHED_TASK(ekf_check,              10,     75,  54),
     SCHED_TASK_CLASS(GCS,            (GCS*)&plane._gcs,       update_receive,   300,  500,  57),
@@ -709,6 +710,26 @@ bool Plane::get_wp_crosstrack_error_m(float &xtrack_error) const
 #endif
     xtrack_error = nav_controller->crosstrack_error();
     return true;
+}
+
+//toufang
+void Plane::uart_to_stm(void){
+    uint8_t v_uart_msg[1] = {0};
+    uint16_t CH6;
+
+    CH6= RC_Channels::get_radio_in(CH_6);
+    
+    if (CH6 <1366){
+        v_uart_msg[0] = 0x01;
+    }
+    else if (1366 < CH6 && CH6 <1633){
+        v_uart_msg[0] = 0x02;
+    }
+    else if (1633 < CH6){
+        v_uart_msg[0] = 0x03;
+    }
+
+    hal.serial(1)->write(v_uart_msg, sizeof(v_uart_msg));
 }
 
 #if AP_SCRIPTING_ENABLED

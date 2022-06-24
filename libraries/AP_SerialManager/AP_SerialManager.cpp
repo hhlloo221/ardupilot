@@ -569,6 +569,14 @@ void AP_SerialManager::init()
                     // Note init is handled by AP_MSP
                     break;
 #endif
+                case SerialProtocol_other_tool:
+                //other_serial  baud=115200  toufang
+                    state[i].baud = AP_SERIALMANAGER_other_BAUD  /  1000;
+                    uart->begin(map_baudrate(state[i].baud),
+                              AP_SERIALMANAGER_other_BUFSIZE_RX,
+                              AP_SERIALMANAGER_other_BUFSIZE_TX);
+                    hal.serial(0)->printf("serial %d opened\n",i);
+                break;
                 default:
                     uart->begin(map_baudrate(state[i].baud));
             }

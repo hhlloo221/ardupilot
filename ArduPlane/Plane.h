@@ -1204,6 +1204,9 @@ private:
     float pitch_in_expo(bool use_dz) const;
     float rudder_in_expo(bool use_dz) const;
 
+    //toufang
+    void uart_to_stm(void);
+
 public:
     void failsafe_check(void);
 #if AP_SCRIPTING_ENABLED
