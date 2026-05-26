@@ -72,6 +72,7 @@ import re
 from sys import platform as _platform
 
 is_WSL = bool("Microsoft" in platform.uname()[2])
+is_Cygwin = bool("cygwin" in _platform)
 
 # default list of port names to look for autopilots
 default_ports = ['/dev/serial/by-id/usb-Ardu*',
@@ -1140,7 +1141,7 @@ def main():
                                   args.no_extf)
 
                 except Exception as e:
-                    if not is_WSL:
+                    if not is_WSL and not is_Cygwin:
                         # open failed, WSL must cycle through all ttyS* ports quickly but rate limit everything else
                         print("Exception creating uploader: %s" % str(e))
                         time.sleep(0.05)
