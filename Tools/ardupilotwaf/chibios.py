@@ -9,6 +9,7 @@ from waflib import Errors, Logs, Task, Utils, Context
 from waflib.TaskGen import after_method, before_method, feature
 
 import os
+import shlex
 import shutil
 import sys
 import re
@@ -52,15 +53,50 @@ def ch_dynamic_env(self):
 class upload_fw(Task.Task):
     color='BLUE'
     always_run = True
+    def _local_uploader_override_args(self, override_cmd):
+        if 'uploader.py' not in override_cmd:
+            return None
+        try:
+            words = shlex.split(override_cmd)
+        except ValueError:
+            return []
+
+        args = []
+        seen_uploader = False
+        skip_next = False
+        for word in words:
+            if skip_next:
+                skip_next = False
+                continue
+            if not seen_uploader:
+                if word.replace('\\', '/').endswith('uploader.py'):
+                    seen_uploader = True
+                continue
+            if word == '--port':
+                skip_next = True
+                continue
+            if word.startswith('--port='):
+                continue
+            args.append(word)
+        return args
+
     def run(self):
         upload_tools = self.env.get_flat('UPLOAD_TOOLS')
         upload_port = self.generator.bld.options.upload_port
         src = self.inputs[0]
         # Refer Tools/scripts/macos_remote_upload.sh for details
-        if 'AP_OVERRIDE_UPLOAD_CMD' in os.environ:
-            cmd = "{} '{}'".format(os.environ['AP_OVERRIDE_UPLOAD_CMD'], src.abspath())
+        override_cmd = os.environ.get('AP_OVERRIDE_UPLOAD_CMD')
+        override_args = []
+        if override_cmd:
+            override_args = self._local_uploader_override_args(override_cmd)
+            if override_args is not None:
+                override_cmd = None
+        if override_cmd:
+            cmd = "{} '{}'".format(override_cmd, src.abspath())
         else:
             cmd = "{} '{}/uploader.py' '{}'".format(self.env.get_flat('PYTHON'), upload_tools, src.abspath())
+            if override_args:
+                cmd += " " + " ".join(shlex.quote(arg) for arg in override_args)
         if upload_port is not None:
             cmd += " '--port' '%s'" % upload_port
         return self.exec_command(cmd)

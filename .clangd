@@ -1,0 +1,11 @@
+CompileFlags:
+  Add:
+    - --target=arm-none-eabi
+  Remove:
+    - -mno-thumb-interwork
+    - -mcpu=*
+    - -mfpu=*
+    - -mfloat-abi=*
+    - -mthumb
+    - -fsingle-precision-constant
+    - -Wno-*

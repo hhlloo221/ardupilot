@@ -471,6 +471,10 @@ def test_summary(bld):
 _build_commands = {}
 
 def _process_build_command(bld):
+    if bld.cmd == 'build' and bld.options.upload and not bld.targets and not bld.options.program_group:
+        bld.targets = 'bin/arduplane'
+        Logs.info('upload: no target specified, defaulting to bin/arduplane')
+
     if bld.cmd not in _build_commands:
         return
 

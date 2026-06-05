@@ -94,6 +94,8 @@ default_ports = ['/dev/serial/by-id/usb-Ardu*',
 if "cygwin" in _platform or is_WSL:
     default_ports += ['/dev/ttyS*']
 
+last_cygwin_usbser_ports = None
+
 # Detect python version
 if sys.version_info[0] < 3:
     runningPython3 = False
@@ -980,9 +982,20 @@ class uploader(object):
 
 
 def ports_to_try(args):
+    global last_cygwin_usbser_ports
     portlist = []
     if args.port is None:
-        patterns = default_ports
+        if is_Cygwin:
+            portlist = cygwin_usbser_ports()
+            if portlist != last_cygwin_usbser_ports:
+                last_cygwin_usbser_ports = list(portlist)
+                if portlist:
+                    print("Detected Cygwin USB serial ports: %s" % ",".join(portlist))
+                else:
+                    print("Detected Cygwin USB serial ports: none")
+            patterns = []
+        else:
+            patterns = default_ports
     else:
         patterns = args.port.split(",")
     # use glob to support wildcard ports. This allows the use of
@@ -1008,6 +1021,33 @@ def ports_to_try(args):
         portlist = [port for port in portlist if "/" not in port]
 
     return portlist
+
+
+def cygwin_usbser_ports():
+    regdir = '/proc/registry/HKEY_LOCAL_MACHINE/HARDWARE/DEVICEMAP/SERIALCOMM'
+    try:
+        entries = os.listdir(regdir)
+    except OSError:
+        return []
+
+    ports = []
+    for entry in sorted(entries):
+        if 'USB' not in entry.upper():
+            continue
+        path = os.path.join(regdir, entry)
+        try:
+            with open(path, 'rb') as port_file:
+                port = port_file.read().decode('ascii', errors='ignore').strip('\0\r\n ')
+        except OSError:
+            continue
+        match = re.match(r'COM(\d+)$', port, re.IGNORECASE)
+        if match is None:
+            continue
+        com_number = int(match.group(1))
+        if com_number > 0:
+            ports.append('/dev/ttyS%u' % (com_number - 1))
+
+    return ports
 
 
 def modemmanager_check():

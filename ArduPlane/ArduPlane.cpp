@@ -71,6 +71,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
 #if ADVANCED_FAILSAFE == ENABLED
     SCHED_TASK(afs_fs_check,           10,    100,  51),
 #endif
+    SCHED_TASK(uart_to_foc, 10, 200, 52),
     SCHED_TASK(ekf_check,              10,     75,  54),
     SCHED_TASK_CLASS(GCS,            (GCS*)&plane._gcs,       update_receive,   300,  500,  57),
     SCHED_TASK_CLASS(GCS,            (GCS*)&plane._gcs,       update_send,      300,  750,  60),
@@ -614,7 +615,74 @@ void Plane::update_flight_stage(void)
     set_flight_stage(AP_Vehicle::FixedWing::FLIGHT_NORMAL);
 }
 
+// 通道5：切换模式
+// 通道3：速度模式速度信号
+// 通道7：位置模式目标角度信号
+void Plane::uart_to_foc(void)
+{
+    int16_t vel_ref = 0;
+    int16_t target_angle = 0;
+    uint8_t foc_uart_msg[9] = {0};
+    uint8_t data[4] = {0};
+    uint16_t CH3, CH5, CH7;
+    
+    CH3 = RC_Channels::get_radio_in(CH_3);//1095        1934
+    CH5 = RC_Channels::get_radio_in(CH_5);//1095  1515  1934
+    CH7 = RC_Channels::get_radio_in(CH_7);//1095        1934
 
+    foc_uart_msg[0] = 0x55;
+    foc_uart_msg[6] = 0xAA;
+    foc_uart_msg[7] = 0xBB;
+    foc_uart_msg[8] = 0xCC;//校验位
+
+    if( CH5 < 1400 )        
+    {
+        foc_uart_msg[1] = 0x01;         //velocity mode
+    }
+    else
+    {
+        foc_uart_msg[1] = 0x02;         //position mode
+    }
+
+    vel_ref = (int16_t)LIMIT_RANGE((FOC_K*CH3)+FOC_B, FOC_DOWN_LIMIT, FOC_UP_LIMIT);
+    foc_uart_msg[2] = (vel_ref&0xff00)>>8;
+    foc_uart_msg[3] = (vel_ref&0x00ff);    
+    target_angle = (int16_t)LIMIT_RANGE((TARGET_K*CH7)+TARGET_B, TARGET_DOWN_LIMIT, TARGET_UP_LIMIT);
+    foc_uart_msg[4] = (target_angle&0xff00)>>8;
+    foc_uart_msg[5] = (target_angle&0x00ff); 
+
+    uint8_t b;
+
+    while (hal.serial(1)->available() >= 6) {
+        b = hal.serial(1)->read();
+
+        if (b == 0xAA) {
+            uint8_t b2 = hal.serial(1)->read();
+
+            if (b2 == 0x55 && hal.serial(1)->available() >= 4) {
+                hal.serial(1)->read(data, 4);
+
+                uint32_t rpm_u =
+                    ((uint32_t)data[0] << 24) |
+                    ((uint32_t)data[1] << 16) |
+                    ((uint32_t)data[2] << 8)  |
+                    ((uint32_t)data[3]);
+                rpm = (int32_t)rpm_u;
+            }
+        }
+    }
+
+    /*** 串口调试***/
+    gcs().send_text(MAV_SEVERITY_DEBUG,"rpm:%ld\r\n", rpm);
+    //hal.serial(2)->printf("CH3:%d\tCH5:%d\tCH7:%d\n", CH3, CH5, CH7);
+    //hal.serial(2)->printf("vel_ref:%d\ttarget_angle:%d\n", vel_ref, target_angle);
+    // hal.serial(2)->write(foc_uart_msg, sizeof(foc_uart_msg));
+    /*** 串口调试***/
+
+    hal.serial(1)->write(foc_uart_msg, sizeof(foc_uart_msg));
+
+
+}
 
 
 /*

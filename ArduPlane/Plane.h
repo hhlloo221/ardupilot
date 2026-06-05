@@ -1203,7 +1203,26 @@ private:
     float roll_in_expo(bool use_dz) const;
     float pitch_in_expo(bool use_dz) const;
     float rudder_in_expo(bool use_dz) const;
-
+//foc control
+    float flapping_angle;
+    int32_t rpm;
+    #define LIMIT_MIN(x, min) ((x < min) ? min : x)
+    #define LIMIT_MAX(x, max) ((x > max) ? max : x)
+    #define LIMIT_RANGE(x,min,max) ((x)<(min)?(min):((x)>(max)?(max):(x)))
+    #define CH3_UP_LIMIT		    1934.0f
+    #define CH3_DOWN_LIMIT	        1095.0f
+    #define FOC_UP_LIMIT		    300.0f		
+    #define FOC_DOWN_LIMIT	        0
+    #define FOC_K 				    (FOC_UP_LIMIT-FOC_DOWN_LIMIT)/(CH3_UP_LIMIT-CH3_DOWN_LIMIT)
+    #define FOC_B 				    (FOC_UP_LIMIT-FOC_K*CH3_UP_LIMIT)
+    #define CH7_UP_LIMIT		    1934.0f
+    #define CH7_DOWN_LIMIT	        1095.0f
+    #define TARGET_UP_LIMIT		    360.0f      //angle
+    #define TARGET_DOWN_LIMIT	    0
+    #define TARGET_K 				(TARGET_UP_LIMIT-TARGET_DOWN_LIMIT)/(CH7_UP_LIMIT-CH7_DOWN_LIMIT)
+    #define TARGET_B 				(TARGET_UP_LIMIT-TARGET_K*CH7_UP_LIMIT)   
+    void uart_to_foc(void);
+    void Log_Write_Encoder(void);
 public:
     void failsafe_check(void);
 #if AP_SCRIPTING_ENABLED
