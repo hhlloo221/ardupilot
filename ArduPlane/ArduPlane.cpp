@@ -22,6 +22,8 @@
 
 #include "Plane.h"
 
+#include <AP_Math/crc.h>
+
 #define SCHED_TASK(func, rate_hz, max_time_micros, priority) SCHED_TASK_CLASS(Plane, &plane, func, rate_hz, max_time_micros, priority)
 
 
@@ -71,6 +73,7 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
 #if ADVANCED_FAILSAFE == ENABLED
     SCHED_TASK(afs_fs_check,           10,    100,  51),
 #endif
+    SCHED_TASK(Read_encoder, 150, 20, 53),
     SCHED_TASK(ekf_check,              10,     75,  54),
     SCHED_TASK_CLASS(GCS,            (GCS*)&plane._gcs,       update_receive,   300,  500,  57),
     SCHED_TASK_CLASS(GCS,            (GCS*)&plane._gcs,       update_send,      300,  750,  60),
@@ -711,6 +714,71 @@ bool Plane::get_wp_crosstrack_error_m(float &xtrack_error) const
     return true;
 }
 
+//编码器读取函数体，用于磁环编码器的读取
+void Plane::Read_encoder(void)
+{
+    static const uint8_t RS485_TX_BUFFER[] = {0x01, 0x03, 0xA3, 0x48, 0x00, 0x01, 0x26, 0x58};
+    static uint8_t RS485_RX_BUFFER[7] = {};
+    static bool request_pending = false;
+    static uint32_t request_time_ms = 0;
+
+    AP_HAL::UARTDriver *uart = hal.serial(1);
+    if (uart == nullptr) {
+        return;
+    }
+
+    const uint32_t now_ms = AP_HAL::millis();
+    if (request_pending) {
+        if (uart->available() >= sizeof(RS485_RX_BUFFER)) {
+            const ssize_t read_len = uart->read(RS485_RX_BUFFER, sizeof(RS485_RX_BUFFER));
+            request_pending = false;
+
+            const uint16_t received_crc = uint16_t(RS485_RX_BUFFER[5]) |
+                                          (uint16_t(RS485_RX_BUFFER[6]) << 8);
+            const bool valid_frame = read_len == ssize_t(sizeof(RS485_RX_BUFFER)) &&
+                                     RS485_RX_BUFFER[0] == 0x01 &&
+                                     RS485_RX_BUFFER[1] == 0x03 &&
+                                     RS485_RX_BUFFER[2] == 0x02 &&
+                                     calc_crc_modbus(RS485_RX_BUFFER, 5) == received_crc;
+
+            if (valid_frame) {
+                const uint16_t raw_phase = (uint16_t(RS485_RX_BUFFER[3]) << 8) |
+                                           RS485_RX_BUFFER[4];
+                if (raw_phase <= 0x3FFF) {
+                    // The encoder supplies a 14-bit value (0 to 16383).
+                    phase_now = wrap_360(raw_phase * (360.0f / 16384.0f));
+                    const float throttle_input = get_throttle_input(true);
+                    const float throttle_demand = SRV_Channels::get_output_scaled(SRV_Channel::k_throttle);
+                    uint16_t throttle_output_pwm = 0;
+                    SRV_Channels::get_output_pwm(SRV_Channel::k_throttle, throttle_output_pwm);
+                    gcs().send_text(MAV_SEVERITY_DEBUG,
+                                    "P:%.1f T:%.1f G:%d B:%d S:%d D:%.1f O:%u",
+                                    phase_now,
+                                    throttle_input,
+                                    glide_flag,
+                                    ready_for_brake,
+                                    is_gliding,
+                                    throttle_demand,
+                                    unsigned(throttle_output_pwm));
+                }
+            } else {
+                uart->discard_input();
+            }
+        } else if (now_ms - request_time_ms > 20) {
+            // Drop an incomplete response and retry without changing phase_now.
+            uart->discard_input();
+            request_pending = false;
+        } else {
+            return;
+        }
+    }
+
+    if (!request_pending &&
+        uart->write(RS485_TX_BUFFER, sizeof(RS485_TX_BUFFER)) == sizeof(RS485_TX_BUFFER)) {
+        request_pending = true;
+        request_time_ms = now_ms;
+    }
+}
 #if AP_SCRIPTING_ENABLED
 // set target location (for use by scripting)
 bool Plane::set_target_location(const Location& target_loc)

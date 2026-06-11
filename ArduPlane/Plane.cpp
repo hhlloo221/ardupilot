@@ -28,7 +28,13 @@ Plane::Plane(void)
 {
     // C++11 doesn't allow in-class initialisation of bitfields
     auto_state.takeoff_complete = true;
+    //机械滑翔相关变量初始化
+    is_gliding = false;
+    ready_for_glide = false;
+    ready_for_brake = false;
+    glide_flag = false;
 }
+
 
 Plane plane;
 AP_Vehicle& vehicle = plane;

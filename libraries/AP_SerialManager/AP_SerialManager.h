@@ -116,6 +116,11 @@
 #define AP_SERIALMANAGER_MSP_BUFSIZE_TX     256
 #define AP_SERIALMANAGER_MSP_BAUD           115200
 
+// other serial GDC
+#define AP_SERIALMANAGER_other_BUFSIZE_RX     128
+#define AP_SERIALMANAGER_other_BUFSIZE_TX     128
+#define AP_SERIALMANAGER_other_BAUD           115200
+
 class AP_SerialManager {
 public:
     AP_SerialManager();
@@ -169,6 +174,7 @@ public:
         SerialProtocol_AIS = 40,
         SerialProtocol_CoDevESC = 41,
         SerialProtocol_MSP_DisplayPort = 42,
+        SerialProtocol_other_tool = 43,
         SerialProtocol_NumProtocols                    // must be the last value
     };
 

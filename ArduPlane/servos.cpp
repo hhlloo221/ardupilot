@@ -393,6 +393,51 @@ void Plane::set_servos_manual_passthrough(void)
         SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, throttle);
     }
 #endif
+    
+    // mechanical_glide_ch8_manual: begin manual-mode mechanical glide throttle override
+    // mechanical_glide_ch8_manual: CH8 low enables glide logic; CH8 high/mid returns MANUAL throttle passthrough.
+    static int glide_delay = 0;
+    const uint16_t ch8_pwm = RC_Channels::get_radio_in(CH_8);
+    glide_flag = ch8_pwm < 1400;
+
+    ready_for_glide = (phase_now > 0.0f && phase_now < 20.0f);
+    if (!glide_flag) {
+        glide_delay = 0;
+        is_gliding = false;
+        ready_for_brake = false;
+        SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, throttle);
+    } else {
+        if (throttle <= 20) {
+            if (!is_gliding && phase_now > 10.0f && phase_now < 30.0f) {
+                glide_delay++;
+            }
+            if (glide_delay > 1) {
+                ready_for_brake = true;
+            }
+
+            if (ready_for_brake) {
+                if (is_gliding) {
+                    SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, 0);
+                } else {
+                    SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, 20);
+                }
+                if (ready_for_glide) {
+                    SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, 0);
+                    is_gliding = true;
+                }
+            } else {
+                SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, 20);
+            }
+        } else {
+            glide_delay = 0;
+            is_gliding = false;
+            ready_for_brake = false;
+            SRV_Channels::set_output_scaled(SRV_Channel::k_throttle, throttle);
+        }
+    }
+    // mechanical_glide_ch8_manual: end manual-mode mechanical glide throttle override
+
+    
 }
 
 /*

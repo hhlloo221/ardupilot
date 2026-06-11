@@ -1203,6 +1203,16 @@ private:
     float roll_in_expo(bool use_dz) const;
     float pitch_in_expo(bool use_dz) const;
     float rudder_in_expo(bool use_dz) const;
+    
+    //机械滑翔相关变量
+    void Read_encoder(void);//编码器读取函数定义
+    #define GLIDE_PHASE	        22
+    #define PHASE_MIDDLE	    115
+    float phase_now;//编码器实时角度
+    bool is_gliding;
+    bool ready_for_glide;
+    bool ready_for_brake;
+    bool glide_flag;
 
 public:
     void failsafe_check(void);
